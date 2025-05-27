@@ -2,104 +2,144 @@ import time
 import cv2
 import pandas as pd
 import numpy as np
+from collections import defaultdict
 from ultralytics import YOLO
 import base64
 
 try:
     model = YOLO('yolo11n.pt')
-    cap = cv2.VideoCapture('camera.mp4')
+    cap = cv2.VideoCapture('Licence.mp4')
+    if not cap.isOpened():
+        raise RuntimeError("Không mở được Licence.mp4")
+
     class_list = model.names
 
-    # Tạo biến để theo dõi ID đã lưu 
-    saved_vehicle_ids = set()
-    # Xử lý hình ảnh được cắt từ video từ bytes thành base64 string lưu vào dbdb
-    def save_image_to_db(image, speed, vehicle_id):
-        # Kiểm tra nếu ID này đã được lưu
-        if vehicle_id in saved_vehicle_ids:
-            return
-        try:
-             # Chuyển ảnh OpenCV sang định dạng bytes
-            is_success, im_buf_arr = cv2.imencode(".jpg", image)
-            byte_im = im_buf_arr.tobytes()
-            
-            # Chuyển bytes thành base64 string
-            image_base64 = base64.b64encode(byte_im).decode('utf-8')
-
-            # Thêm ID vào set đã lưu
-            saved_vehicle_ids.add(vehicle_id)
-            print(f"Đã lưu xe ID {vehicle_id} với tốc độ {speed} km/h")
-        except Exception as e:
-            print(f"Lỗi khi lưu ảnh: {e}")
-
-            #Xác định tọa độ con trỏ chuột để vẽ cái đường line xác địnhđịnh
+    # Mouse callback (nếu muốn)
     def RGB(event, x, y, flags, param):
-        if  event == cv2.EVENT_MOUSEMOVE :  
-            colorsBGR = [x, y]
-            print(colorsBGR)
+        if event == cv2.EVENT_MOUSEMOVE:
+            print([x, y])
     cv2.namedWindow('RGB')
     cv2.setMouseCallback('RGB', RGB)
 
-
-    #đếm số frame tính fps 
+    # Đếm frame và fps
     frame_count = 0
-    #fps thuc te cua video
     fps = cap.get(cv2.CAP_PROP_FPS)
-    # vị trí cố định của đường line theo trục oxy trong frame hình 
-    line_y_red = 102  # Red line position
-    line_y_blue = 333  # Blue line position
-    line_y_yellow = 148  # Yellow line position
 
-    # Theo dõi xe cán qua vạch 
-    crossed_red = set()
+    # Vị trí các vạch
+    line_y_red    = 102
+    line_y_blue   = 333
+    line_y_yellow = 148
+
+    # Theo dõi crossing và đếm
+    crossed_red    = set()
     crossed_yellow = set()
-    crossed_blue = set()
-    
-    # Lưu hình ảnh khi xe can qua vach xanh 
-    save_blue_image = set()
-    # Lặp từng khung hình videovideo
-    while cap.isOpened():
-        ret, frame = cap.read()
-    
-        if not ret:
-            break
-    frame_count += 1
-    #điều chỉnh kích cỡ khung hìnhhình
-    frame=cv2.resize(frame,(1020,500))    
-    
-    # chạy model theo dõi của yolo 
-    results = model.track(frame, persist=True)
+    crossed_blue   = set()
+    count_down     = defaultdict(int)
+    count_up       = defaultdict(int)
+
+    # Lưu frame khi qua vạch để tính tốc độ
+    speed_dict = dict()  # sẽ mapping: track_id -> {"yellow_frame":…, "red_frame":…}
 
     vehicle_classes = ["car", "truck", "bus", "motorbike"]
 
-    boxes = []
-    track_ids = []
-    class_indices = []
-    confidences = []
-      # Lọc chỉ giữ lại các phương tiện giao thông
-    boxes, track_ids, class_indices, confidences = [], [], [], []
-    
-    if results and len(results) > 0 and results[0].boxes is not None and results[0].boxes.data is not None:
-        for i in range(len(results[0].boxes.cls)):
-            class_index = int(results[0].boxes.cls[i].item())  # Lấy index lớp
-            class_name = class_list[class_index]  # Lấy tên lớp
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-            if class_name in vehicle_classes:  # Nếu thuộc nhóm xe cộ, mới thêm vào danh sách
-                boxes.append(results[0].boxes.xyxy[i].cpu().tolist())
-                track_ids.append(int(results[0].boxes.id[i].item()) if results[0].boxes.id is not None else -1)
-                class_indices.append(class_index)
-                confidences.append(float(results[0].boxes.conf[i].item()))
-        # Vẽ đường line trên khung hình
-    cv2.line(frame, (25, line_y_red), (789, line_y_red), (0, 0, 255), 3)
-    cv2.putText(frame, 'Red Line', (106, line_y_red - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        frame_count += 1
+        frame = cv2.resize(frame, (1020, 500))
 
-    cv2.line(frame, (70, line_y_blue), (857, line_y_blue), (255, 0, 0), 3)
-    cv2.putText(frame, 'Blue Line', (106, line_y_blue - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        results = model.track(frame, persist=True)
 
-    cv2.line(frame, (25, line_y_yellow), (830, line_y_yellow), (0, 255, 255), 3)
-    cv2.putText(frame, 'Yellow Line', (104, line_y_yellow - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        # Lọc boxes, ids, class_indices, confidences
+        boxes, track_ids, class_indices, confidences = [], [], [], []
+        if results and results[0].boxes is not None and results[0].boxes.data is not None:
+            for i in range(len(results[0].boxes.cls)):
+                cls_idx  = int(results[0].boxes.cls[i].item())
+                cls_name = class_list[cls_idx]
+                if cls_name in vehicle_classes:
+                    boxes.append(results[0].boxes.xyxy[i].cpu().tolist())
+                    track_ids.append(int(results[0].boxes.id[i].item()) if results[0].boxes.id is not None else -1)
+                    class_indices.append(cls_idx)
+                    confidences.append(float(results[0].boxes.conf[i].item()))
+
+        # Vẽ các vạch
+        cv2.line(frame, (25, line_y_red),    (789, line_y_red),    (0, 0, 255),   3)
+        cv2.putText(frame, 'Red Line',    (106, line_y_red - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+        cv2.line(frame, (25, line_y_blue),  (857, line_y_blue),  (255,0,0),     3)
+        cv2.putText(frame, 'Blue Line',   (106, line_y_blue - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+        cv2.line(frame, (25, line_y_yellow),(830, line_y_yellow),(0,255,255),   3)
+        cv2.putText(frame, 'Yellow Line', (104, line_y_yellow - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+
+        # Xử lý từng object
+        for box, track_id, cls_idx in zip(boxes, track_ids, class_indices):
+            x1, y1, x2, y2 = map(int, box)
+            cx, cy = (x1 + x2)//2, (y1 + y2)//2
+            cls_name = class_list[cls_idx]
+
+            # Khởi tạo entry trong speed_dict nếu chưa có
+            if track_id not in speed_dict:
+                speed_dict[track_id] = {"yellow_frame": None, "red_frame": None}
+
+            # Vẽ bbox, tâm và ID
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+            cv2.circle(frame, (cx, cy), 4, (0,0,255), -1)
+            cv2.putText(frame, f"ID:{track_id} {cls_name}", (x1, y1-10),
+                        cv2.FONT_HERSHEY_COMPLEX, 0.6, (0,255,255), 2)
+
+            # Khi xe lần đầu qua vạch xanh
+            if y1 <= line_y_blue <= y2 and track_id not in crossed_blue:
+                crossed_blue.add(track_id)
+            # Đếm xuống khi tâm gần vạch xanh
+            if track_id in crossed_blue and abs(cy - line_y_blue) <= 5:
+                count_down[cls_name] += 1
+
+            # Khi xe qua vạch đỏ lần đầu
+            if y1 <= line_y_red <= y2 and track_id not in crossed_red:
+                crossed_red.add(track_id)
+            # Ghi frame cắt vạch đỏ
+            if y1 <= line_y_red <= y2 and speed_dict[track_id]["red_frame"] is None:
+                speed_dict[track_id]["red_frame"] = frame_count
+
+            # Khi xe qua vạch vàng lần đầu
+            if y1 <= line_y_yellow <= y2 and track_id not in crossed_yellow:
+                crossed_yellow.add(track_id)
+            # Ghi frame cắt vạch vàng
+            if y1 <= line_y_yellow <= y2 and speed_dict[track_id]["yellow_frame"] is None:
+                speed_dict[track_id]["yellow_frame"] = frame_count
+
+            # Tính tốc độ khi đã có cả hai lần cắt
+            red_f   = speed_dict[track_id]["red_frame"]
+            yellow_f= speed_dict[track_id]["yellow_frame"]
+            if red_f is not None and yellow_f is not None:
+                frame_diff = abs(yellow_f - red_f)
+                if (frame_diff > 0):
+                    real_distance_met = 5
+                    time_taken = (frame_diff / fps) 
+                    speed = (real_distance_met / time_taken) * 3.6  # m/s → km/h
+                    speed_text = f"{speed:.1f} km/h"
+                    cv2.putText(frame, speed_text, (x1, y1 - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+        # Vẽ số liệu đếm xuống
+        y_offset = 30
+        for cls, cnt in count_down.items():
+            cv2.putText(frame,
+                        f'{cls} (Down): {cnt}',
+                        (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7, (0,255,0), 2, cv2.LINE_AA)
+            y_offset += 30
+
+        cv2.imshow('RGB', frame)
+        if cv2.waitKey(1) & 0xFF == 27:  # Nhấn ESC để thoát
+            break
 
 finally:
-    print("Đang dọn dẹp tài nguyên...") 
+    print("Đang dọn dẹp tài nguyên...")
     try:
         cap.release()
         cv2.destroyAllWindows()

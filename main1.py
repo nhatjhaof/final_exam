@@ -82,7 +82,7 @@ while cap.isOpened():
     # Draw the lines on the frame
     cv2.line(frame, (25, line_y_red), (789, line_y_red), (0, 0, 255), 3)
     cv2.putText(frame, 'Red Line', (106, line_y_red - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
+ 
     cv2.line(frame, (70, line_y_blue), (857, line_y_blue), (255, 0, 0), 3)
     cv2.putText(frame, 'Blue Line', (106, line_y_blue - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
