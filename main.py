@@ -5,6 +5,7 @@ import numpy as np
 from collections import defaultdict
 from ultralytics import YOLO
 import base64
+import os
 
 try:
     model = YOLO('yolo11n.pt')
@@ -36,6 +37,12 @@ try:
     crossed_blue   = set()
     count_down     = defaultdict(int)
     count_up       = defaultdict(int)
+
+    #Vùng lưu id ảnh xe
+    save_blue_image = set()
+    
+    # Ngưỡng cho phép so với vạch xanh
+    capture_threshold = 5
 
     # Lưu frame khi qua vạch để tính tốc độ
     speed_dict = dict()  # sẽ mapping: track_id -> {"yellow_frame":…, "red_frame":…}
@@ -121,10 +128,32 @@ try:
                     real_distance_met = 5
                     time_taken = (frame_diff / fps) 
                     speed = (real_distance_met / time_taken) * 3.6  # m/s → km/h
+                    
+                    #Cảnh báo tốc độ
+                    if (speed > 60):
+                        warning_text = "Speed limit exceeded!"
+                        cv2.putText(frame,warning_text, (x1, y1 - 45), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    
+                    #Hiển thị tốc độ
                     speed_text = f"{speed:.1f} km/h"
-                    cv2.putText(frame, speed_text, (x1, y1 - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    cv2.putText(frame, speed_text, (x1, y1 - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-        # Vẽ số liệu đếm xuống
+        #Chụp lại hình ảnh xe
+            if (track_id not in save_blue_image and abs(cy - line_y_blue) <= capture_threshold):
+                
+                car_image = frame[y1:y2, x1:x2]
+                resized_car_image = cv2.resize(car_image, (500, 500))
+                
+                fileName = f"vehicle{track_id}_f{frame_count}_f{cls_name}.jpg" 
+                filePath = f"./Capture/{fileName}"
+        #Tạo thư mục capture nếu chưa dc khởi tạo
+                os.makedirs("Capture", exist_ok=True)
+        # Lưu ảnh
+                cv2.imwrite(filePath, resized_car_image)
+        #đánh dấu id đã được lưu
+
+                save_blue_image.add(track_id)
+        # Vẽ số liệu đếm xe đi xuống
         y_offset = 30
         for cls, cnt in count_down.items():
             cv2.putText(frame,
