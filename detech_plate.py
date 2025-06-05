@@ -27,7 +27,7 @@ def improved_recognize_license_plate(image):
                 box = plate_boxes[0]  # Lấy bounding box đầu tiên (có thể chọn bounding box tốt nhất)
                 x1, y1, x2, y2 = map(int, box[:4])  # Lấy tọa độ của bounding box
                 
-                # Cắt vùng ảnh biển số từ ảnh gốc
+            # Cắt vùng ảnh biển số từ ảnh gốc
                 roi = image[y1:y2, x1:x2]
                 
                 # Chuyển vùng biển số sang ảnh xám để xử lý tốt hơn
@@ -48,6 +48,7 @@ def improved_recognize_license_plate(image):
                 
                 # Trả về kết quả nhận diện (text) và vùng biển số (ROI)
                 return plate_text, roi
+
                 
         # Trả về None nếu không phát hiện biển số
         return None, None

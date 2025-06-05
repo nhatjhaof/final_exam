@@ -8,6 +8,8 @@ from collections import defaultdict
 import base64
 from detech_plate import process_and_save_plate 
 
+## ssh -L 58763:127.0.0.1:3306 root@192.168.70.128
+
 # Load biến môi trường từ file .env
 load_dotenv()
 
@@ -124,7 +126,7 @@ try:
                     speed = (real_distance_met / time_taken) * 3.6
                     speed_dict[track_id]["speed"] = speed
 
-            # 🚩 Luôn vẽ tốc độ nếu đã có
+            # Luôn vẽ tốc độ nếu đã có
             speed = speed_dict[track_id].get("speed")
             if speed:
                 speed_text = f"{speed:.1f} km/h"
