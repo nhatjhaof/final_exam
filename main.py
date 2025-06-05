@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from ultralytics import YOLO
 from collections import defaultdict
 import base64
+from telegram_bot import sendTelegramMessage
 from detech_plate import process_and_save_plate 
 
 ## ssh -L 58763:127.0.0.1:3306 root@192.168.70.128
@@ -110,11 +111,12 @@ try:
             if y1 <= line_y_red <= y2 and speed_dict[track_id]["red_frame"] is None:
                 speed_dict[track_id]["red_frame"] = frame_count
 
-            if y1 <= line_y_yellow <= y2 and track_id not in crossed_yellow:
-                crossed_yellow.add(track_id)
             if y1 <= line_y_yellow <= y2 and speed_dict[track_id]["yellow_frame"] is None:
                 speed_dict[track_id]["yellow_frame"] = frame_count
-
+            
+            if y1 <= line_y_yellow <= y2 and track_id not in crossed_yellow:
+                crossed_yellow.add(track_id)
+            
             red_f = speed_dict[track_id]["red_frame"]
             yellow_f = speed_dict[track_id]["yellow_frame"]
 
@@ -133,12 +135,7 @@ try:
                 cv2.putText(frame, speed_text, (x1, y1 - 25),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-                if speed > 60:
-                    warning_text = "Speed limit exceeded!"
-                    cv2.putText(frame, warning_text, (x1, y1 - 45),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-
-            if track_id not in save_blue_image and abs(cy - line_y_blue) <= capture_threshold and speed:
+            if track_id not in save_blue_image and abs(cy - line_y_blue) <= capture_threshold and speed > 40:
                 car_image = frame[y1:y2, x1:x2]
                 resized_car_image = cv2.resize(car_image, (500, 500))
                 fileName = f"vehicle{track_id}_f{frame_count}_{cls_name}.jpg"
@@ -162,8 +159,21 @@ try:
                     )
                     conn.commit()
                     print(f"✅ Đã lưu ảnh {fileName}, speed: {speed:.1f} km/h (base64)")
+                    message = f"""
+                    🚨  <b> Xe vi phạm tốc độ và chạm vạch vàng!</b>
+                    - Biển số: {detected_plate}
+                    - Tốc độ: {speed:.1f} km/h
+                    - Thời gian: {time.strftime('%Y-%m-%d %H:%M:%S')}
+                    """
+                    # Gửi thông báo kèm theo hình ảnh
+                    sendTelegramMessage(message, filePath)  # Gửi hình ảnh từ thư mục Capture
+                    print(f"✅ Đã gửi thông báo về vi phạm tốc độ cho biển số: {detected_plate}")
                 except Exception as e:
                     print(f"❌ Lỗi lưu ảnh vào DB: {e}")
+                    # Gửi thông báo khi xe vi phạm tốc độ
+                    
+                    
+
 
         y_offset = 30
         for cls, cnt in count_down.items():
