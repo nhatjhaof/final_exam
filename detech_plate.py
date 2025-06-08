@@ -34,7 +34,7 @@ def improved_recognize_license_plate(image):
                 roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                 
                 # Resize vùng biển số với tỷ lệ nhỏ hơn để tăng độ sắc nét
-                roi_resized = cv2.resize(roi_gray, None, fx=3, fy=2.2, interpolation=cv2.INTER_CUBIC)
+                roi_resized = cv2.resize(roi_gray, None, fx=3, fy=1.5, interpolation=cv2.INTER_CUBIC)
                 
                 # Áp dụng ngưỡng nhị phân Otsu để làm nổi bật ký tự
                 _, roi_thresh = cv2.threshold(roi_resized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)

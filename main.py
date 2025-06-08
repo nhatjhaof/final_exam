@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from ultralytics import YOLO
 from collections import defaultdict
 import base64
-from telegram_bot import sendTelegramMessage
 from detech_plate import process_and_save_plate 
 
 ## ssh -L 58763:127.0.0.1:3306 root@192.168.70.128
@@ -157,21 +156,11 @@ try:
                         "INSERT INTO vehicle_images (image_data, capture_time, speed) VALUES (%s, NOW(), %s)",
                         (encoded_data, speed)
                     )
-                    conn.commit()
-                    print(f"✅ Đã lưu ảnh {fileName}, speed: {speed:.1f} km/h (base64)")
-                    message = f"""
-                    🚨  <b> Xe vi phạm tốc độ và chạm vạch vàng!</b>
-                    - Biển số: {detected_plate}
-                    - Tốc độ: {speed:.1f} km/h
-                    - Thời gian: {time.strftime('%Y-%m-%d %H:%M:%S')}
-                    """
-                    # Gửi thông báo kèm theo hình ảnh
-                    sendTelegramMessage(message, filePath)  # Gửi hình ảnh từ thư mục Capture
-                    print(f"✅ Đã gửi thông báo về vi phạm tốc độ cho biển số: {detected_plate}")
+                    conn.commit()    
                 except Exception as e:
                     print(f"❌ Lỗi lưu ảnh vào DB: {e}")
                     # Gửi thông báo khi xe vi phạm tốc độ
-                    
+    
                     
 
 
