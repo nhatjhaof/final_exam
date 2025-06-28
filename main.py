@@ -122,7 +122,7 @@ try:
             if red_f is not None and yellow_f is not None and speed_dict[track_id]["speed"] is None:
                 frame_diff = abs(yellow_f - red_f)
                 if frame_diff > 0:
-                    real_distance_met = 5
+                    real_distance_met = 7
                     time_taken = frame_diff / fps
                     speed = (real_distance_met / time_taken) * 3.6
                     speed_dict[track_id]["speed"] = speed
